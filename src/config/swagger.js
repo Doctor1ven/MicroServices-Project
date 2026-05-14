@@ -1,5 +1,20 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 
+const servers = [
+  process.env.API_PUBLIC_URL && {
+    url: process.env.API_PUBLIC_URL,
+    description: 'API Gateway'
+  },
+  process.env.BACKEND_PUBLIC_URL && {
+    url: process.env.BACKEND_PUBLIC_URL,
+    description: 'Backend microservice'
+  },
+  {
+    url: '/',
+    description: 'Current host'
+  }
+].filter(Boolean);
+
 const options = {
   definition: {
     openapi: '3.0.0',
@@ -8,16 +23,7 @@ const options = {
       version: '1.0.0',
       description: 'JWT, refresh token, RBAC, notes, admin, and password reset API.'
     },
-    servers: [
-      {
-        url: process.env.API_PUBLIC_URL || 'http://localhost:4000',
-        description: 'API Gateway'
-      },
-      {
-        url: process.env.BACKEND_PUBLIC_URL || 'http://localhost:5001',
-        description: 'Backend microservice'
-      }
-    ],
+    servers,
     components: {
       securitySchemes: {
         bearerAuth: {

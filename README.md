@@ -1,6 +1,6 @@
-# Secure Notes Microservice Backend
+# Secure Notes Microservice Project
 
-A secure Node.js and Express backend for a Notes API with JWT authentication, role-based authorization, MongoDB persistence, validation, rate limiting, input sanitization, and Winston logging.
+A secure microservice notes app with a React frontend, Express API Gateway, Express backend, JWT authentication, refresh tokens, role-based access control, MongoDB Atlas persistence, Swagger docs, validation, rate limiting, input sanitization, and Winston logging.
 
 ## Project Structure
 
@@ -8,8 +8,10 @@ A secure Node.js and Express backend for a Notes API with JWT authentication, ro
 .
 ├── .env.example
 ├── .gitignore
-├── package.json
+├── package.json                  # Backend service
 ├── README.md
+├── client                        # React frontend
+├── gateway-service               # API Gateway
 └── src
     ├── app.js
     ├── server.js
@@ -89,14 +91,14 @@ A secure Node.js and Express backend for a Notes API with JWT authentication, ro
    npm start
    ```
 
-The server runs on `http://localhost:5000` by default. Health check: `GET /health`.
+Set `PORT` in `.env` to choose the local backend port. Health check: `GET /health`.
 
 ## Example Requests
 
 Register:
 
 ```bash
-curl -X POST http://localhost:5000/api/auth/register \
+curl -X POST "$API_BASE_URL/api/auth/register" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Admin User",
@@ -109,7 +111,7 @@ curl -X POST http://localhost:5000/api/auth/register \
 Login:
 
 ```bash
-curl -X POST http://localhost:5000/api/auth/login \
+curl -X POST "$API_BASE_URL/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com",
@@ -120,7 +122,7 @@ curl -X POST http://localhost:5000/api/auth/login \
 Create a note:
 
 ```bash
-curl -X POST http://localhost:5000/api/notes \
+curl -X POST "$API_BASE_URL/api/notes" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
@@ -132,6 +134,56 @@ curl -X POST http://localhost:5000/api/notes \
 Delete a note as admin:
 
 ```bash
-curl -X DELETE http://localhost:5000/api/notes/NOTE_ID \
+curl -X DELETE "$API_BASE_URL/api/notes/NOTE_ID" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
+
+## Render Deployment
+
+Deploy the three services independently.
+
+| Service | Render type | Root directory | Build command | Start command / Publish directory |
+| --- | --- | --- | --- | --- |
+| Backend | Web Service | repo root | `npm install` | `npm start` |
+| Gateway | Web Service | `gateway-service` | `npm install` | `npm start` |
+| Frontend | Static Site | `client` | `npm install && npm run build` | `dist` |
+
+If you move the backend into a `backend-service` directory, use that as the backend root directory and keep the same backend build and start commands.
+
+Backend environment variables:
+
+```text
+NODE_ENV=production
+PORT=<Render provides this automatically>
+MONGO_URI=<MongoDB Atlas connection string>
+JWT_SECRET=<long random secret>
+REFRESH_TOKEN_SECRET=<different long random secret>
+FRONTEND_URL=https://your-frontend.onrender.com
+API_PUBLIC_URL=https://your-gateway.onrender.com
+BACKEND_PUBLIC_URL=https://your-backend.onrender.com
+CORS_ORIGIN=https://your-frontend.onrender.com,https://your-gateway.onrender.com
+```
+
+Gateway environment variables:
+
+```text
+NODE_ENV=production
+PORT=<Render provides this automatically>
+BACKEND_URL=https://your-backend.onrender.com
+FRONTEND_URL=https://your-frontend.onrender.com
+GATEWAY_CORS_ORIGIN=https://your-frontend.onrender.com
+```
+
+Frontend environment variables:
+
+```text
+REACT_APP_API_URL=https://your-gateway.onrender.com
+```
+
+Swagger remains available at `/api/docs`. Use the gateway URL for normal traffic and docs access, for example `https://your-gateway.onrender.com/api/docs`.
+
+Notes for Render free tier:
+
+- Services may sleep when idle; the first request after sleep can be slow.
+- Use MongoDB Atlas, not a local MongoDB instance.
+- Keep `.env` files local only. Commit `.env.example` files, but set real secrets in Render's Environment tab.

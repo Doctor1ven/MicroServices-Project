@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: secure-notes-backend
+    env: node
+    rootDir: .
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: REFRESH_TOKEN_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: API_PUBLIC_URL
+        sync: false
+      - key: BACKEND_PUBLIC_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+
+  - type: web
+    name: secure-notes-gateway
+    env: node
+    rootDir: gateway-service
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BACKEND_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: GATEWAY_CORS_ORIGIN
+        sync: false
+
+  - type: static
+    name: secure-notes-frontend
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: REACT_APP_API_URL
+        sync: false

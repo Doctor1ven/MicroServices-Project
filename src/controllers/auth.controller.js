@@ -191,8 +191,12 @@ const forgotPassword = async (req, res, next) => {
       user.resetPasswordExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
       await user.save();
 
-      const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}&email=${encodeURIComponent(user.email)}`;
-      logger.info(`Password reset link for ${user.email}: ${resetLink}`);
+      const resetLink = process.env.FRONTEND_URL
+        ? `${process.env.FRONTEND_URL}/reset-password?token=${token}&email=${encodeURIComponent(user.email)}`
+        : null;
+      if (process.env.NODE_ENV !== 'production' && resetLink) {
+        logger.debug(`Password reset link for ${user.email}: ${resetLink}`);
+      }
       audit('password_reset_requested', { userId: user._id.toString(), email: user.email });
     }
 

@@ -12,16 +12,21 @@ const logger = winston.createLogger({
     winston.format.errors({ stack: true }),
     logFormat
   ),
-  transports: [
-    new winston.transports.Console(),
+  transports: [new winston.transports.Console()]
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(
     new winston.transports.File({
       filename: path.join('logs', 'error.log'),
       level: 'error'
-    }),
+    })
+  );
+  logger.add(
     new winston.transports.File({
       filename: path.join('logs', 'combined.log')
     })
-  ]
-});
+  );
+}
 
 module.exports = logger;

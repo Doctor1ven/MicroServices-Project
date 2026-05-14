@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
+const API_BASE_URL = (process.env.REACT_APP_API_URL || '').replace(/\/$/, '');
+const apiUrl = (path) => `${API_BASE_URL}${path}`;
+
 function App() {
   const [mode, setMode] = useState('login');
   const [user, setUser] = useState(null);
@@ -20,7 +23,7 @@ function App() {
   async function refreshAccessToken() {
     if (!refreshToken) throw new Error('Session expired');
 
-    const res = await fetch('/api/auth/refresh', {
+    const res = await fetch(apiUrl('/api/auth/refresh'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken })
@@ -34,7 +37,7 @@ function App() {
   }
 
   async function request(url, options = {}, retry = true) {
-    const res = await fetch(url, {
+    const res = await fetch(apiUrl(url), {
       ...options,
       headers: {
         'Content-Type': 'application/json',

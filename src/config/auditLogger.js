@@ -7,12 +7,16 @@ fs.mkdirSync(path.resolve('logs'), { recursive: true });
 const auditLogger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
-  transports: [
+  transports: [new winston.transports.Console()]
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  auditLogger.add(
     new winston.transports.File({
       filename: path.join('logs', 'audit.log')
     })
-  ]
-});
+  );
+}
 
 const audit = (event, metadata = {}) => {
   auditLogger.info({ event, ...metadata });
