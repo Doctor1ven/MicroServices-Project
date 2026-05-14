@@ -28,6 +28,25 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['admin', 'user'],
       default: 'user'
+    },
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    lockUntil: {
+      type: Date,
+      default: null
+    },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+      default: null
+    },
+    resetPasswordExpires: {
+      type: Date,
+      select: false,
+      default: null
     }
   },
   { timestamps: true }
@@ -46,10 +65,17 @@ userSchema.methods.comparePassword = function comparePassword(candidatePassword)
   return bcrypt.compare(candidatePassword, this.password);
 };
 
+userSchema.methods.isLocked = function isLocked() {
+  return Boolean(this.lockUntil && this.lockUntil > new Date());
+};
+
 userSchema.methods.toJSON = function toJSON() {
   const user = this.toObject();
   delete user.password;
+  delete user.resetPasswordToken;
+  delete user.resetPasswordExpires;
   delete user.__v;
+  user.isLocked = Boolean(user.lockUntil && user.lockUntil > new Date());
   return user;
 };
 

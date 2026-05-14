@@ -5,26 +5,58 @@ import './styles.css';
 function App() {
   const [mode, setMode] = useState('login');
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState('');
+  const [accessToken, setAccessToken] = useState('');
+  const [refreshToken, setRefreshToken] = useState('');
   const [notes, setNotes] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminNotes, setAdminNotes] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [message, setMessage] = useState('');
 
-  const [auth, setAuth] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'user'
-  });
+  const [auth, setAuth] = useState({ name: '', email: '', password: '' });
+  const [reset, setReset] = useState({ email: '', token: '', password: '' });
   const [note, setNote] = useState({ title: '', content: '' });
 
-  async function request(url, options = {}) {
+  async function refreshAccessToken() {
+    if (!refreshToken) throw new Error('Session expired');
+
+    const res = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.message || 'Session expired');
+
+    setAccessToken(data.accessToken);
+    return data.accessToken;
+  }
+
+  async function request(url, options = {}, retry = true) {
     const res = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...options.headers
       }
     });
+
+    if (res.status === 401 && retry && refreshToken) {
+      const newAccessToken = await refreshAccessToken();
+      return request(
+        url,
+        {
+          ...options,
+          headers: {
+            ...options.headers,
+            Authorization: `Bearer ${newAccessToken}`
+          }
+        },
+        false
+      );
+    }
 
     const data = res.status === 204 ? {} : await res.json();
     if (!res.ok) throw new Error(data.message || 'Request failed');
@@ -37,7 +69,7 @@ function App() {
       const body =
         mode === 'login'
           ? { email: auth.email, password: auth.password }
-          : auth;
+          : { name: auth.name, email: auth.email, password: auth.password };
 
       const data = await request(`/api/auth/${mode}`, {
         method: 'POST',
@@ -45,24 +77,64 @@ function App() {
       });
 
       setUser(data.user);
-      setToken(data.token);
+      setAccessToken(data.accessToken);
+      setRefreshToken(data.refreshToken);
       setMessage(data.message);
-      loadNotes(data.token);
+      await loadNotes(data.accessToken);
+
+      if (data.user.role === 'admin') {
+        await loadAdminDashboard(data.accessToken);
+      }
     } catch (err) {
       setMessage(err.message);
     }
   }
 
-  async function loadNotes(loginToken = token) {
+  async function handleForgotPassword(e) {
+    e.preventDefault();
     try {
-      const data = await fetch('/api/notes', {
-        headers: { Authorization: `Bearer ${loginToken}` }
-      }).then((res) => res.json());
-
-      setNotes(data.notes || []);
-    } catch {
-      setMessage('Could not load notes');
+      const data = await request('/api/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email: reset.email })
+      });
+      setMessage(data.message);
+    } catch (err) {
+      setMessage(err.message);
     }
+  }
+
+  async function handleResetPassword(e) {
+    e.preventDefault();
+    try {
+      const data = await request('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify(reset)
+      });
+      setMessage(data.message);
+      setMode('login');
+    } catch (err) {
+      setMessage(err.message);
+    }
+  }
+
+  async function loadNotes(token = accessToken) {
+    const data = await request('/api/notes', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    setNotes(data.notes || []);
+  }
+
+  async function loadAdminDashboard(token = accessToken) {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const [usersData, notesData, logsData] = await Promise.all([
+      request('/api/admin/users', { headers }),
+      request('/api/admin/notes', { headers }),
+      request('/api/admin/logs', { headers })
+    ]);
+
+    setAdminUsers(usersData.users || []);
+    setAdminNotes(notesData.notes || []);
+    setAuditLogs(logsData.logs || []);
   }
 
   async function createNote(e) {
@@ -81,92 +153,205 @@ function App() {
     }
   }
 
-  async function deleteNote(id) {
+  async function deleteUser(id) {
     try {
-      await request(`/api/notes/${id}`, { method: 'DELETE' });
-      setNotes(notes.filter((item) => item._id !== id));
-      setMessage('Note deleted');
+      await request(`/api/admin/users/${id}`, { method: 'DELETE' });
+      setAdminUsers(adminUsers.filter((item) => item._id !== id));
+      setAdminNotes(adminNotes.filter((item) => item.owner?._id !== id && item.owner !== id));
+      setMessage('User deleted');
+      await loadAdminDashboard();
     } catch (err) {
       setMessage(err.message);
     }
   }
 
+  async function logout() {
+    try {
+      await request('/api/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken })
+      });
+    } catch {
+      // Clear local session even if the token was already expired.
+    }
+
+    setUser(null);
+    setAccessToken('');
+    setRefreshToken('');
+    setNotes([]);
+    setAdminUsers([]);
+    setAdminNotes([]);
+    setAuditLogs([]);
+    setMessage('Logged out');
+  }
+
   return (
     <main>
-      <h1>Secure Notes Frontend</h1>
-      {message && <p>{message}</p>}
+      <header>
+        <h1>Secure Notes</h1>
+        {user && (
+          <div>
+            <span>
+              {user.name} ({user.role})
+            </span>
+            <button onClick={logout}>Logout</button>
+          </div>
+        )}
+      </header>
 
-      {!token ? (
-        <form onSubmit={handleAuth}>
-          <h2>{mode === 'login' ? 'Login' : 'Register'}</h2>
+      {message && <p className="message">{message}</p>}
 
-          <button type="button" onClick={() => setMode('login')}>Login</button>
-          <button type="button" onClick={() => setMode('register')}>Register</button>
+      {!accessToken ? (
+        <section>
+          <div className="tabs">
+            <button type="button" onClick={() => setMode('login')}>Login</button>
+            <button type="button" onClick={() => setMode('register')}>Register</button>
+            <button type="button" onClick={() => setMode('forgot')}>Forgot Password</button>
+            <button type="button" onClick={() => setMode('reset')}>Reset Password</button>
+          </div>
 
-          {mode === 'register' && (
-            <>
+          {(mode === 'login' || mode === 'register') && (
+            <form onSubmit={handleAuth}>
+              <h2>{mode === 'login' ? 'Login' : 'Register'}</h2>
+              {mode === 'register' && (
+                <input
+                  placeholder="Name"
+                  value={auth.name}
+                  onChange={(e) => setAuth({ ...auth, name: e.target.value })}
+                />
+              )}
               <input
-                placeholder="Name"
-                value={auth.name}
-                onChange={(e) => setAuth({ ...auth, name: e.target.value })}
+                placeholder="Email"
+                value={auth.email}
+                onChange={(e) => setAuth({ ...auth, email: e.target.value })}
               />
-              <select
-                value={auth.role}
-                onChange={(e) => setAuth({ ...auth, role: e.target.value })}
-              >
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </select>
-            </>
+              <input
+                type="password"
+                placeholder="Password"
+                value={auth.password}
+                onChange={(e) => setAuth({ ...auth, password: e.target.value })}
+              />
+              <button type="submit">Submit</button>
+            </form>
           )}
 
-          <input
-            placeholder="Email"
-            value={auth.email}
-            onChange={(e) => setAuth({ ...auth, email: e.target.value })}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={auth.password}
-            onChange={(e) => setAuth({ ...auth, password: e.target.value })}
-          />
-          <button type="submit">Submit</button>
-        </form>
+          {mode === 'forgot' && (
+            <form onSubmit={handleForgotPassword}>
+              <h2>Forgot Password</h2>
+              <input
+                placeholder="Email"
+                value={reset.email}
+                onChange={(e) => setReset({ ...reset, email: e.target.value })}
+              />
+              <button type="submit">Generate Reset Token</button>
+            </form>
+          )}
+
+          {mode === 'reset' && (
+            <form onSubmit={handleResetPassword}>
+              <h2>Reset Password</h2>
+              <input
+                placeholder="Email"
+                value={reset.email}
+                onChange={(e) => setReset({ ...reset, email: e.target.value })}
+              />
+              <input
+                placeholder="Reset token"
+                value={reset.token}
+                onChange={(e) => setReset({ ...reset, token: e.target.value })}
+              />
+              <input
+                type="password"
+                placeholder="New password"
+                value={reset.password}
+                onChange={(e) => setReset({ ...reset, password: e.target.value })}
+              />
+              <button type="submit">Reset Password</button>
+            </form>
+          )}
+        </section>
       ) : (
-        <>
-          <p>
-            Logged in as {user.name} ({user.role})
-          </p>
-          <button onClick={() => loadNotes()}>Refresh notes</button>
-          <button onClick={() => setToken('')}>Logout</button>
-
-          <form onSubmit={createNote}>
-            <h2>Create Note</h2>
-            <input
-              placeholder="Title"
-              value={note.title}
-              onChange={(e) => setNote({ ...note, title: e.target.value })}
-            />
-            <textarea
-              placeholder="Content"
-              value={note.content}
-              onChange={(e) => setNote({ ...note, content: e.target.value })}
-            />
-            <button type="submit">Add Note</button>
-          </form>
-
-          <h2>Notes</h2>
-          {notes.map((item) => (
-            <div key={item._id}>
-              <h3>{item.title}</h3>
-              <p>{item.content}</p>
-              {user.role === 'admin' && (
-                <button onClick={() => deleteNote(item._id)}>Delete</button>
-              )}
+        <section className="dashboard">
+          <section>
+            <div className="section-header">
+              <h2>Your Notes</h2>
+              <button onClick={() => loadNotes()}>Refresh</button>
             </div>
-          ))}
-        </>
+
+            <form onSubmit={createNote}>
+              <input
+                placeholder="Title"
+                value={note.title}
+                onChange={(e) => setNote({ ...note, title: e.target.value })}
+              />
+              <textarea
+                placeholder="Content"
+                value={note.content}
+                onChange={(e) => setNote({ ...note, content: e.target.value })}
+              />
+              <button type="submit">Add Note</button>
+            </form>
+
+            <div className="list">
+              {notes.map((item) => (
+                <article key={item._id}>
+                  <h3>{item.title}</h3>
+                  <p>{item.content}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          {user.role === 'admin' && (
+            <section>
+              <div className="section-header">
+                <h2>Admin Dashboard</h2>
+                <button onClick={() => loadAdminDashboard()}>Refresh Admin Data</button>
+              </div>
+
+              <h3>Users</h3>
+              <div className="list">
+                {adminUsers.map((item) => (
+                  <article key={item._id} className="row">
+                    <div>
+                      <strong>{item.name}</strong>
+                      <p>{item.email}</p>
+                      <p>
+                        {item.role} | failed attempts: {item.failedLoginAttempts || 0} |{' '}
+                        {item.isLocked ? `locked until ${new Date(item.lockUntil).toLocaleString()}` : 'not locked'}
+                      </p>
+                    </div>
+                    <button onClick={() => deleteUser(item._id)} disabled={item._id === user._id}>
+                      Delete
+                    </button>
+                  </article>
+                ))}
+              </div>
+
+              <h3>All Notes</h3>
+              <div className="list">
+                {adminNotes.map((item) => (
+                  <article key={item._id}>
+                    <h4>{item.title}</h4>
+                    <p>{item.content}</p>
+                    <small>
+                      Owner: {item.owner?.email || item.owner}
+                    </small>
+                  </article>
+                ))}
+              </div>
+
+              <h3>Audit Logs</h3>
+              <div className="logs">
+                {auditLogs.map((item, index) => (
+                  <pre key={`${item.timestamp || 'log'}-${index}`}>
+                    {JSON.stringify(item, null, 2)}
+                  </pre>
+                ))}
+              </div>
+            </section>
+          )}
+        </section>
       )}
     </main>
   );
