@@ -249,17 +249,6 @@ const options = {
           }
         }
       },
-      '/api/admin/notes': {
-        get: {
-          summary: 'List all notes',
-          tags: ['Admin'],
-          security: [{ bearerAuth: [] }],
-          responses: {
-            200: { description: 'Notes returned' },
-            403: { description: 'Access denied' }
-          }
-        }
-      },
       '/api/admin/logs': {
         get: {
           summary: 'List recent audit log entries',

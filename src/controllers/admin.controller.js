@@ -37,18 +37,6 @@ const deleteUser = async (req, res, next) => {
   }
 };
 
-const getNotes = async (_req, res, next) => {
-  try {
-    const notes = await Note.find()
-      .populate('owner', 'name email role')
-      .sort({ createdAt: -1 });
-
-    return res.status(200).json({ notes });
-  } catch (error) {
-    return next(error);
-  }
-};
-
 const getLogs = async (_req, res, next) => {
   try {
     const auditLogPath = path.resolve('logs', 'audit.log');
@@ -83,6 +71,5 @@ const getLogs = async (_req, res, next) => {
 module.exports = {
   deleteUser,
   getLogs,
-  getNotes,
   getUsers
 };

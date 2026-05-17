@@ -49,7 +49,6 @@ function App() {
   const [refreshToken, setRefreshToken] = useState('');
   const [notes, setNotes] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
-  const [adminNotes, setAdminNotes] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [notice, setNotice] = useState({ type: '', message: '', details: [] });
   const [loading, setLoading] = useState({});
@@ -75,7 +74,6 @@ function App() {
     setRefreshToken('');
     setNotes([]);
     setAdminUsers([]);
-    setAdminNotes([]);
     setAuditLogs([]);
     setNotice({ type: 'error', message, details: [] });
   }
@@ -262,14 +260,12 @@ function App() {
   async function loadAdminDashboard(token = accessToken, options = {}) {
     const execute = async () => {
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const [usersData, notesData, logsData] = await Promise.all([
+      const [usersData, logsData] = await Promise.all([
         request('/api/admin/users', { headers }),
-        request('/api/admin/notes', { headers }),
         request('/api/admin/logs', { headers })
       ]);
 
       setAdminUsers(usersData.users || []);
-      setAdminNotes(notesData.notes || []);
       setAuditLogs(logsData.logs || []);
       if (!options.silent) showSuccess('Admin data refreshed');
     };
@@ -300,7 +296,6 @@ function App() {
     await runAction(`deleteUser:${id}`, async () => {
       await request(`/api/admin/users/${id}`, { method: 'DELETE' });
       setAdminUsers(adminUsers.filter((item) => item._id !== id));
-      setAdminNotes(adminNotes.filter((item) => item.owner?._id !== id && item.owner !== id));
       showSuccess('User deleted');
       await loadAdminDashboard(accessToken, { silent: true });
     });
@@ -322,7 +317,6 @@ function App() {
       setRefreshToken('');
       setNotes([]);
       setAdminUsers([]);
-      setAdminNotes([]);
       setAuditLogs([]);
       showSuccess('Logged out');
     });
@@ -505,17 +499,6 @@ function App() {
                     >
                       {isLoading(`deleteUser:${item._id}`) ? 'Deleting...' : 'Delete'}
                     </button>
-                  </article>
-                ))}
-              </div>
-
-              <h3>All Notes</h3>
-              <div className="list">
-                {adminNotes.map((item) => (
-                  <article key={item._id}>
-                    <h4>{item.title}</h4>
-                    <p>{item.content}</p>
-                    <small>Owner: {item.owner?.email || item.owner}</small>
                   </article>
                 ))}
               </div>
