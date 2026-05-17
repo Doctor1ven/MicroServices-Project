@@ -54,6 +54,12 @@ textarea {
   width: 100%;
 }
 
+input:disabled,
+textarea:disabled {
+  background: #eef2f6;
+  color: #5f6b7a;
+}
+
 textarea {
   min-height: 90px;
   resize: vertical;
@@ -72,17 +78,55 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button[aria-pressed="true"] {
+  background: #0f3f87;
+}
+
 .tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.message {
-  background: #fff7d6;
-  border: 1px solid #ead37a;
+.notice {
+  align-items: flex-start;
   border-radius: 6px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-top: 16px;
   padding: 10px;
+}
+
+.notice strong,
+.notice p {
+  margin: 0;
+}
+
+.notice p {
+  margin-top: 4px;
+}
+
+.notice ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.notice.success {
+  background: #e9f8ef;
+  border: 1px solid #87c999;
+}
+
+.notice.error {
+  background: #fff0f0;
+  border: 1px solid #e49a9a;
+}
+
+.notice-close {
+  background: transparent;
+  color: #17202a;
+  margin: 0;
+  padding: 4px 8px;
 }
 
 .dashboard {
@@ -104,4 +148,23 @@ button:disabled {
   max-height: 220px;
   overflow: auto;
   white-space: pre-wrap;
+}
+
+.empty {
+  color: #5f6b7a;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  main {
+    padding: 16px;
+  }
+
+  header,
+  .section-header,
+  .row,
+  .notice {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
